@@ -144,7 +144,6 @@ mod unit_tests {
     #[test]
     fn weights() {
         let s:f32 = D3Q27_W.iter().sum();
-        println!("s: {}", s);
         assert!((1.0 - s).abs() < 0.00001);
     }
 

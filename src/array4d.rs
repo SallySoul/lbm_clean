@@ -4,7 +4,7 @@ use crate::*;
 pub struct Array4D {
     dimensions: AABB<4>,
     size: usize,
-    buffer: Vec<f32>,
+    pub buffer: Vec<f32>,
 }
 
 impl Array4D {

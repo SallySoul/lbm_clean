@@ -1,6 +1,6 @@
 use crate::*;
 use lattice::*;
-use nalgebra::{vector, matrix};
+use nalgebra::{matrix, vector};
 use vtkio::model::*;
 
 // Coord Iterator
@@ -24,7 +24,7 @@ pub fn cell_count(aabb: AABB<3>) -> usize {
 
 pub struct Solver {
     grid_dimensions: AABB<3>,
-    distributions: Array4D,
+    pub distributions: Array4D,
     distributions_buffer: Array4D,
     pressure: Array3D,
     velocity: VelArray,
@@ -151,32 +151,44 @@ impl Solver {
     */
 
     pub fn apply_bcs(&mut self) {
-        let bb_0 = matrix![0, 6; 0, 0; 0, 6;];
+        let x_min = self.grid_dimensions[(0, 0)];
+        let x_max = self.grid_dimensions[(0, 1)];
+        let y_min = self.grid_dimensions[(1, 0)];
+        let y_max = self.grid_dimensions[(1, 1)];
+        let z_min = self.grid_dimensions[(2, 0)];
+        let z_max = self.grid_dimensions[(2, 1)];
+
+        // Bottom
+        let bb_0 = matrix![x_min, x_max; y_min, y_max; z_min, z_max;];
         for coord in coord_iter(bb_0) {
             self.apply_bounce_back(&coord);
         }
 
-        let bb_1 = matrix![0, 6; 6, 6; 0, 6;];
+        // Top
+        let bb_1 = matrix![x_min, x_max; y_max, y_max; z_min, z_max;];
         for coord in coord_iter(bb_1) {
             self.apply_bounce_back(&coord);
         }
 
-        let bb_2 = matrix![0, 0; 1, 5; 0, 6;];
+        // Left (x_min)
+        let bb_2 = matrix![x_min, x_min; y_min + 1, y_max - 1; z_min, z_max;];
         for coord in coord_iter(bb_2) {
             self.apply_bounce_back(&coord);
         }
 
-        let bb_3 = matrix![6, 6; 1, 5; 0, 6;];
+        // Right
+        let bb_3 = matrix![x_max, x_max; y_min + 1, y_max - 1; z_min, z_max;];
         for coord in coord_iter(bb_3) {
             self.apply_bounce_back(&coord);
         }
 
-        let bb_4 = matrix![1, 5; 1, 5;  0, 0];
+        // front
+        let bb_4 = matrix![x_min + 1, x_max - 1; y_min + 1, y_max - 1;  z_min, z_min];
         for coord in coord_iter(bb_4) {
             self.apply_bounce_back(&coord);
         }
-    
-        let bb_5 = matrix![1, 5; 1, 5; 6, 6];
+
+        let bb_5 = matrix![x_min + 1, x_max - 1; y_min + 1, y_max - 1; z_max, z_max];
         for coord in coord_iter(bb_5) {
             self.apply_bounce_back(&coord);
         }
@@ -191,7 +203,7 @@ impl Solver {
         outflow_face[(2, 0)] = inflow_face[(2, 1)];
 
         */
-/*
+        /*
         // Bounce back
         let mut bb_0 = self.grid_dimensions;
         bb_0[(0, 1)] = bb_0[(0, 0)];
@@ -229,6 +241,7 @@ impl Solver {
         let mut density = Vec::with_capacity(buffer_size);
         let mut velocity = Vec::with_capacity(3 * buffer_size);
         let mut points = Vec::with_capacity(3 * buffer_size);
+        let mut qs = vec![Vec::with_capacity(buffer_size); 27];
         for coord in coord_iter(self.grid_dimensions) {
             points.push(coord[0] as f32);
             points.push(coord[1] as f32);
@@ -240,6 +253,11 @@ impl Solver {
             velocity.push(vel[0]);
             velocity.push(vel[1]);
             velocity.push(vel[2]);
+
+            for q_i in 0..27 {
+                let q = self.distributions.get_q(&coord, q_i);
+                qs[q_i as usize].push(q);
+            }
         }
 
         let n_cells = cell_count(self.grid_dimensions);
@@ -258,7 +276,7 @@ impl Solver {
 
             let vertices = [&cell_coord, &n_3, &n_6, &n_1, &n_2, &n_5, &n_7, &n_4];
             for v in vertices {
-                let index = coord_to_linear_in_box(v, &self.grid_dimensions)as u64;
+                let index = coord_to_linear_in_box(v, &self.grid_dimensions) as u64;
                 connectivity.push(index);
             }
 
@@ -266,6 +284,37 @@ impl Solver {
             cell_types.push(CellType::Hexahedron);
             offset += 8;
         }
+
+        let mut point_attributes = vec![
+            Attribute::DataArray(DataArrayBase {
+                name: format!("density"),
+                elem: ElementType::Scalars {
+                    num_comp: 1,
+                    lookup_table: None,
+                },
+                data: IOBuffer::F32(density),
+            }),
+            Attribute::DataArray(DataArrayBase {
+                name: format!("velocity"),
+                elem: ElementType::Scalars {
+                    num_comp: 3,
+                    lookup_table: None,
+                },
+                data: IOBuffer::F32(velocity),
+            }),
+        ];
+
+        for q_i in 0..27 {
+            point_attributes.push(Attribute::DataArray(DataArrayBase {
+                name: format!("q_{}", q_i),
+                elem: ElementType::Scalars {
+                    num_comp: 1,
+                    lookup_table: None,
+                },
+                data: IOBuffer::F32(qs[q_i].clone()),
+            }));
+        }
+
         Vtk {
             version: Version { major: 1, minor: 0 },
             title: String::new(),
@@ -281,25 +330,7 @@ impl Solver {
                     types: cell_types,
                 },
                 data: Attributes {
-                    point: vec![
-Attribute::DataArray(DataArrayBase {
-                    name: format!("density"),
-                    elem: ElementType::Scalars {
-                        num_comp: 1,
-                        lookup_table: None,
-                    },
-                    data: IOBuffer::F32(density),
-                }),
-Attribute::DataArray(DataArrayBase {
-                    name: format!("velocity"),
-                    elem: ElementType::Scalars {
-                        num_comp: 3,
-                        lookup_table: None,
-                    },
-                    data: IOBuffer::F32(velocity),
-                })
-
-                    ],
+                    point: point_attributes,
                     cell: vec![],
                 },
             }),

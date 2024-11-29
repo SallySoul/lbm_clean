@@ -11,7 +11,7 @@ pub fn coord_to_linear_in_box<const GRID_DIMENSION: usize>(
     coord: &Coord<GRID_DIMENSION>,
     b: &AABB<GRID_DIMENSION>,
 ) -> usize {
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     {
         // TODO replace with `debug_assert!(b,contains ...)`
         for d in 0..GRID_DIMENSION {
