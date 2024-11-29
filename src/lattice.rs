@@ -147,4 +147,15 @@ mod unit_tests {
         println!("s: {}", s);
         assert!((1.0 - s).abs() < 0.00001);
     }
+
+    #[test]
+    fn dirs() {
+        let mut sum = Vec3::zero();
+        for d in gen_d3q27_directions() {
+            sum += d;
+        }
+        for d in 0..3 {
+            assert!(sum[d].abs() < 0.000001);
+        }
+    }
 }
