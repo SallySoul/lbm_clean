@@ -2,6 +2,10 @@ use crate::*;
 use lattice::*;
 use nalgebra::{matrix, vector};
 use vtkio::model::*;
+use rand::prelude::*;
+use rand::distributions::{Distribution, Uniform};
+
+
 
 // Coord Iterator
 pub fn coord_iter(aabb: AABB<3>) -> impl std::iter::Iterator<Item = Coord<3>> {
@@ -61,15 +65,40 @@ impl Solver {
             inflow_density,
             inflow_accel,
         };
-        result.init();
         result
     }
 
-    fn init(&mut self) {
+    pub fn equilibrium_init(&mut self) {
         for coord in coord_iter(self.grid_dimensions) {
             for q in 0..27 {
                 let value = self.inflow_density * D3Q27_W[q];
                 self.distributions.set_q(&coord, q as i32, value)
+            }
+        }
+    }
+
+    pub fn flow_init(&mut self) {
+
+        let mut rng = rand::thread_rng();
+        let dist = Uniform::from(0.0..0.1);
+        for coord in coord_iter(self.grid_dimensions) {
+            for q_i in 0..27 {
+                let value = self.inflow_density * dist.sample(&mut rng);
+                self.distributions.set_q(&coord, q_i, value);
+            }
+
+            if coord[1] > 20 {
+                let q_i = 6;
+                let w_i = D3Q27_W[q_i];
+                let w = 1.0 / w_i;
+                let value = self.inflow_density * w;
+                self.distributions.set_q(&coord, q_i as i32, value);
+            } else {
+                let q_i = 5;
+                let w_i = D3Q27_W[q_i];
+                let w = 1.0 / w_i;
+                let value = self.inflow_density * w;
+                self.distributions.set_q(&coord, q_i as i32, value);
             }
         }
     }
@@ -100,7 +129,9 @@ impl Solver {
                 pressure += q;
                 u += self.directions[q_i as usize] * q;
             }
-            u /= pressure;
+            if pressure.abs() > 0.00001 {
+                u /= pressure;
+            } 
             self.pressure.set(&coord, pressure);
             self.velocity.set(&coord, u);
         }
@@ -110,6 +141,9 @@ impl Solver {
         for coord in coord_iter(self.grid_dimensions) {
             let u = self.velocity.get(&coord);
             let p = self.pressure.get(&coord);
+            let mut i_d = 0.0;
+            let mut n_d = 0.0;
+            let mut eq_d = 0.0;
             for q_i in 0..27 {
                 // Calculate equilibrium
                 let dir = self.directions[q_i as usize];
@@ -125,7 +159,12 @@ impl Solver {
                 let q = self.distributions.get_q(&coord, q_i);
                 let new_q = q + self.omega * (q_eq - q);
                 self.distributions.set_q(&coord, q_i, new_q);
+
+                i_d += q;
+                n_d += new_q;
+                eq_d += q_eq;
             }
+            println!("q: {}, eq_q: {}, n_d: {}, p: {}, u: {:?}", i_d, eq_d, n_d, p, u);
         }
     }
 
@@ -151,7 +190,7 @@ impl Solver {
     pub fn apply_outflow_bc(&mut self, coord: &Coord<3>) {
         for q_i in 0..27 {
             let t = self.inflow_density * self.inflow_accel * D3Q27_W[q_i];
-        }
+  k      }
     }
 */
     pub fn apply_bcs(&mut self) {

@@ -6,5 +6,6 @@ edition = "2021"
 [dependencies]
 nalgebra = "0.33.2"
 num-traits = "0.2.19"
+rand = "0.8.5"
 time = "0.3.36"
 vtkio = "0.6.3"

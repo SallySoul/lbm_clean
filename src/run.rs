@@ -5,9 +5,9 @@ pub fn run(solver: &mut Solver, n_it: usize, n_out: usize) {
     let mut iter = 0;
 
     println!("  writing first snapshot {:06}", iter);
-    //solver.moments();
+    solver.moments();
     solver.write_vtk(0);
-
+    iter += 1;
     while iter < n_it {
         println!("  iter: {}", iter);
         let write_output = n_out > 0 && iter % n_out == 0;
