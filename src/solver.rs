@@ -139,8 +139,7 @@ impl Solver {
             self.distributions.set_q(coord, q_i, new_q[q_i as usize]);
         }
     }
-
-    /*
+/*
     pub fn apply_inflow_bc(&mut self, coord &Coord<3>) {
         for q_i in 0..27 {
             let t = self.inflow_density * self.inflow_accel * D3Q27_W[q_i];
@@ -148,8 +147,13 @@ impl Solver {
 
 
     }
-    */
 
+    pub fn apply_outflow_bc(&mut self, coord: &Coord<3>) {
+        for q_i in 0..27 {
+            let t = self.inflow_density * self.inflow_accel * D3Q27_W[q_i];
+        }
+    }
+*/
     pub fn apply_bcs(&mut self) {
         let x_min = self.grid_dimensions[(0, 0)];
         let x_max = self.grid_dimensions[(0, 1)];
